@@ -416,3 +416,107 @@ test("destroyed and off-screen entities are cleaned up (the list does not grow f
   }
   assert.ok(maxLen < 120, "entities peaked at " + maxLen);
 });
+
+// ---- Fuel (Task 6) ---------------------------------------------------------------
+
+test("fuel drains at a constant 1/32 per second, whatever the speed", () => {
+  const results = {};
+  for (const key of [null, "up", "down"]) {
+    const { game, input } = makeGame();
+    recordDeaths(game);
+    clearEnemies(game);
+    game.player.speed = { null: 60, up: 110, down: 30 }[key];
+    if (key) input.down(key, "k");
+    step(game, input, 60); // 1 s
+    results[key] = game.fuel;
+  }
+  for (const key of Object.keys(results)) {
+    assert.ok(Math.abs(results[key] - (1 - 1 / 32)) < 1e-9, `${key}: ${results[key]}`);
+  }
+});
+
+test("a full tank lasts 32 seconds, then the plane crashes", () => {
+  const { game, input } = makeGame();
+  const deaths = recordDeaths(game);
+  clearEnemies(game);
+  // park over a wide stretch of river by holding the scroll at 0 (fuel still burns)
+  let steps = 0;
+  while (!deaths.length && steps < 3000) {
+    game.player.speed = 0;
+    game.player.x = 76;
+    step(game, input, 1);
+    steps++;
+  }
+  assert.equal(deaths[0], "fuel");
+  assert.ok(Math.abs(steps - 32 * 60) <= 2, "ran dry after " + steps + " steps");
+  assert.equal(game.fuel, 0);
+});
+
+test("low-fuel flag below 25%", () => {
+  const { game } = makeGame();
+  game.fuel = 0.26;
+  assert.equal(game.isLowFuel(), false);
+  game.fuel = 0.2499;
+  assert.equal(game.isLowFuel(), true);
+});
+
+test("hovering over a depot refuels at 0.30/s (on top of the drain), and the depot survives", () => {
+  const { game, input } = makeGame();
+  recordDeaths(game);
+  clearEnemies(game);
+  place(game, 76, 100);
+  game.fuel = 0.4;
+  const depot = spawn(game, "depot", 76, 100 + 24 - 5);
+  for (let i = 0; i < 60; i++) {
+    game.player.speed = 0;
+    step(game, input, 1);
+  }
+  assert.ok(Math.abs(game.fuel - (0.4 + 0.3 - 1 / 32)) < 1e-6, "fuel " + game.fuel);
+  assert.equal(depot.alive, true);
+  assert.equal(game.refueling, true);
+  game.player.x = 100; // slide off it
+  for (let i = 0; i < 2; i++) {
+    game.player.speed = 0;
+    step(game, input, 1);
+  }
+  assert.equal(game.refueling, false);
+});
+
+test("flying slowly over a depot gives more fuel than flying fast", () => {
+  const gain = {};
+  for (const [name, key, speed] of [["slow", "down", 30], ["normal", null, 60], ["fast", "up", 110]]) {
+    const { game, input } = makeGame();
+    recordDeaths(game);
+    clearEnemies(game);
+    place(game, 76, 100);
+    game.fuel = 0.3;
+    spawn(game, "depot", 76, 100 + 24 + 10 + 20);
+    if (key) input.down(key, "k");
+    game.player.speed = speed;
+    const before = game.fuel;
+    for (let i = 0; i < 120; i++) step(game, input, 1);
+    // add back the drain so that only the refuel remains
+    gain[name] = game.fuel - before + (120 / 60) * (1 / 32);
+  }
+  assert.ok(gain.slow > gain.normal && gain.normal > gain.fast, JSON.stringify(gain));
+  assert.ok(gain.slow > 0.25 && gain.slow < 0.32, "slow gain " + gain.slow);
+  assert.ok(gain.fast > 0.05 && gain.fast < 0.12, "fast gain " + gain.fast);
+});
+
+test("the tank tops out at 1 and announces it once", () => {
+  const { game, input } = makeGame();
+  recordDeaths(game);
+  clearEnemies(game);
+  place(game, 76, 100);
+  game.fuel = 0.95;
+  spawn(game, "depot", 76, 100 + 24 - 5);
+  let full = 0;
+  game.onTankFull = () => full++;
+  for (let i = 0; i < 120; i++) {
+    game.player.speed = 0;
+    step(game, input, 1);
+    assert.ok(game.fuel <= 1);
+  }
+  assert.ok(game.fuel > 0.99);
+  assert.equal(full, 1);
+});

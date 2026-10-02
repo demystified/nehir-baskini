@@ -59,6 +59,8 @@
     this.spawnEnemies = true;
     this.time = 0;
     this.checkpoint = 0; // section index to respawn at
+    this.fuel = CFG.FUEL_START; // 0..1
+    this.refueling = false; // overlapping a depot this step
     this.startSection(0);
   }
 
@@ -70,6 +72,8 @@
     this.entities = [];
     this.explosions = [];
     this.missile = null;
+    this.fuel = CFG.FUEL_START;
+    this.refueling = false;
     this.cameraY = River.sectionBase(index);
     this.player.reset();
     this.player.y = this.cameraY + CFG.PLAYER_BOTTOM_MARGIN;
@@ -139,8 +143,30 @@
     this.updateExplosions(dt);
 
     if (this.checkPlayerCollisions()) return;
+    if (this.updateFuel(dt)) return;
     this.cleanup();
   };
+
+  // Constant drain (whatever the speed), plus a refill while over a depot. Running dry
+  // is fatal. Returns true if the player died.
+  Game.prototype.updateFuel = function (dt) {
+    var before = this.fuel;
+    this.fuel -= CFG.FUEL_DRAIN * dt;
+    if (this.refueling) this.fuel += CFG.FUEL_REFILL * dt;
+    this.fuel = Math.max(0, Math.min(1, this.fuel));
+    if (this.refueling && before < 1 && this.fuel >= 1) this.onTankFull();
+    if (this.fuel <= 0) {
+      this.die("fuel");
+      return true;
+    }
+    return false;
+  };
+
+  Game.prototype.isLowFuel = function () {
+    return this.fuel < CFG.FUEL_LOW;
+  };
+
+  Game.prototype.onTankFull = function () {};
 
   Game.prototype.fireMissile = function () {
     var p = this.player;
@@ -237,6 +263,7 @@
   // the player died.
   Game.prototype.checkPlayerCollisions = function () {
     var hb = this.player.hitbox();
+    this.refueling = false;
     if (!RR.Collision.boxOverWater(this.sections, hb)) {
       this.die("bank");
       return true;
@@ -244,7 +271,10 @@
     for (var i = 0; i < this.entities.length; i++) {
       var e = this.entities[i];
       if (!e.alive || !RR.Collision.aabbOverlap(hb, e)) continue;
-      if (e.type === "depot") continue;
+      if (e.type === "depot") {
+        this.refueling = true; // flying over a depot refuels; it is not an obstacle
+        continue;
+      }
       if (e.type !== "bridge") {
         e.alive = false;
         this.explodeAt(e.x + e.w / 2, e.y + e.h / 2);
@@ -438,8 +468,18 @@
     this.renderMissile(ctx);
     this.renderPlayer(ctx);
     this.renderExplosions(ctx);
-    ctx.fillStyle = C.hud;
-    ctx.fillRect(0, PLAY_H, W, CFG.HUD_H);
+    RR.Hud.draw(ctx, this.hudModel());
+  };
+
+  Game.prototype.hudModel = function () {
+    return {
+      score: this.scoring.score,
+      fuel: this.fuel,
+      reserves: this.scoring.reserves,
+      bridge: this.currentSection() + 1,
+      guided: this.guided,
+      time: this.time,
+    };
   };
 
   RR.Game = Game;
