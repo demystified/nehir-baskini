@@ -28,3 +28,73 @@ body {
   image-rendering: crisp-edges;
   image-rendering: pixelated;
 }
+
+/* ---- On-screen touch controls (only on touch devices) -------------------------------- */
+
+.touch {
+  display: none;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.touch-ui .touch {
+  display: block;
+}
+
+.touch-pad,
+.touch-fire {
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  pointer-events: auto;
+  touch-action: none;
+  background: rgba(255, 255, 255, 0.16);
+  border: 2px solid rgba(255, 255, 255, 0.38);
+  -webkit-backdrop-filter: blur(1px);
+}
+
+.touch-pad {
+  left: calc(env(safe-area-inset-left, 0px) + 16px);
+  width: min(38vw, 168px);
+  height: min(38vw, 168px);
+  border-radius: 22%;
+}
+
+.touch-fire {
+  right: calc(env(safe-area-inset-right, 0px) + 16px);
+  width: min(30vw, 124px);
+  height: min(30vw, 124px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.85);
+  font: bold 15px/1 monospace;
+  letter-spacing: 2px;
+}
+
+.touch-fire.on,
+.arrow.on {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
+.touch-fire.on {
+  border-radius: 50%;
+}
+
+.arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 11px solid transparent;
+  opacity: 0.8;
+  border-radius: 2px;
+}
+
+.arrow.up { top: 8%; left: 50%; margin-left: -11px; border-bottom-color: #fff; border-top-width: 0; }
+.arrow.down { bottom: 8%; left: 50%; margin-left: -11px; border-top-color: #fff; border-bottom-width: 0; }
+.arrow.left { left: 8%; top: 50%; margin-top: -11px; border-right-color: #fff; border-left-width: 0; }
+.arrow.right { right: 8%; top: 50%; margin-top: -11px; border-left-color: #fff; border-right-width: 0; }
+
+.arrow.on { background-color: transparent; opacity: 1; filter: drop-shadow(0 0 4px #fff); }

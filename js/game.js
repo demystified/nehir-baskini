@@ -660,7 +660,7 @@
       y += 8;
     }
     shadowText(ctx, "HIGH SCORE " + this.scoring.highScore, cx, 106, C.hudText, 1);
-    if (this.blink(2)) shadowText(ctx, "PRESS ENTER OR SPACE", cx, 124, C.white, 1);
+    if (this.blink(2)) shadowText(ctx, this.input.touchUi ? "TAP TO START" : "PRESS ENTER OR SPACE", cx, 124, C.white, 1);
   };
 
   Game.prototype.renderReady = function (ctx) {
@@ -672,7 +672,7 @@
   Game.prototype.renderPaused = function (ctx) {
     dimPanel(ctx, 20, 58, W - 40, 40, 0.55);
     shadowText(ctx, "PAUSED", W / 2, 64, C.hudText, 2);
-    shadowText(ctx, "PRESS P TO RESUME", W / 2, 84, C.white, 1);
+    shadowText(ctx, this.input.touchUi ? "TAP TO RESUME" : "PRESS P TO RESUME", W / 2, 84, C.white, 1);
   };
 
   Game.prototype.renderGameOver = function (ctx) {
@@ -681,7 +681,7 @@
     shadowText(ctx, "SCORE " + this.scoring.score, W / 2, 72, C.hudText, 1);
     shadowText(ctx, "HIGH SCORE " + this.scoring.highScore, W / 2, 84, C.hudText, 1);
     if (this.newRecord && this.blink(3)) shadowText(ctx, "NEW HIGH SCORE", W / 2, 98, C.explosionYellow, 1);
-    if (this.stateTime >= CFG.GAMEOVER_DELAY && this.blink(2)) shadowText(ctx, "PRESS ENTER", W / 2, 114, C.white, 1);
+    if (this.stateTime >= CFG.GAMEOVER_DELAY && this.blink(2)) shadowText(ctx, this.input.touchUi ? "TAP TO CONTINUE" : "PRESS ENTER", W / 2, 114, C.white, 1);
   };
 
   Game.prototype.render = function (ctx) {

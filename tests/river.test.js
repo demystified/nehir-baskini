@@ -127,6 +127,12 @@ test("sections 0-49: first 2 and last 2 segments have no island and funnel to th
   }
 });
 
+test("islands never start right in front of a freshly respawned plane (first 5 segments are clear)", () => {
+  for (const s of all(50)) {
+    for (let k = 0; k < CONFIG.ISLAND_SKIP_SEGMENTS; k++) assert.equal(s.segments[k].island, 0, `section ${s.index} segment ${k}`);
+  }
+});
+
 test("the generator really produces variety: narrow necks, wide reaches, islands", () => {
   const secs = all(50);
   let islandSections = 0;
@@ -178,6 +184,22 @@ test("sections 0-49: tankers, helicopters and depots lie fully inside water (wit
     }
   }
   assert.ok(counted > 100);
+});
+
+test("a tanker or helicopter always leaves a gap of at least 12 px on one side for the plane", () => {
+  let ships = 0;
+  for (const s of all(50)) {
+    for (const o of s.objects) {
+      if (o.type !== "tanker" && o.type !== "heli") continue;
+      ships++;
+      const k = Math.floor(o.y / 16);
+      const span = s.spans[k].find(([x0, x1]) => o.x >= x0 && o.x + o.w <= x1);
+      const left = o.x - span[0];
+      const right = span[1] - (o.x + o.w);
+      assert.ok(Math.max(left, right) >= CONFIG.OBJECT_MIN_FREE, `section ${s.index}: ${o.type} leaves ${left}/${right}`);
+    }
+  }
+  assert.ok(ships > 100);
 });
 
 test("objects obey the table: skip first 2 segments, sizes, mover flags, jets off-screen", () => {
@@ -296,8 +318,9 @@ test("section helpers", () => {
   assert.equal(River.sectionAt(0), 0);
   assert.equal(River.sectionAt(527.9), 0);
   assert.equal(River.sectionAt(528), 1);
+  const D = CONFIG.DIFFICULTY_SECTIONS;
   assert.equal(River.difficulty(0), 0);
-  assert.equal(River.difficulty(6), 0.5);
-  assert.equal(River.difficulty(12), 1);
+  assert.equal(River.difficulty(D / 2), 0.5);
+  assert.equal(River.difficulty(D), 1);
   assert.equal(River.difficulty(500), 1);
 });

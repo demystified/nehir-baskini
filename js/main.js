@@ -15,6 +15,7 @@
 
   RR.Sprites.init();
   RR.Input.attachKeyboard(window);
+  RR.Input.attachTouch(window, document);
   var game = new RR.Game({ input: RR.Input, audio: RR.Audio });
 
   // The AudioContext may only be created/resumed inside a user gesture. Key presses and

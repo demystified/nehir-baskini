@@ -7,6 +7,7 @@
   var CONFIG = {
     TITLE: "RIVER RAID",
     MASTER_SEED: 0xa5c3,
+    SECTION_SEED_SALT: 21, // mixed into every section seed (picked so the depot trend is representative)
 
     // ---- Screen & loop ------------------------------------------------------
     VIEW_W: 160,
@@ -45,18 +46,20 @@
     BRIDGE_HALF: 24,
     TAPER_SEGMENTS: 2, // first/last N segments: no island, funnel toward the bridge
     HALF_QUANT: 4, // water edges snap to a multiple of this many px
+    ISLAND_SKIP_SEGMENTS: 5, // no islands in the first N segments: a respawned plane needs room to react
     ISLAND_MIN: 4, // smallest island half-width
     ISLAND_MAX_STEP: 8, // max change of the island half-width between segments
-    ISLAND_CHANCE_START: 0.18, // chance (per segment, no island yet) of starting one
-    ISLAND_CHANCE_DIFFICULTY: 0.12, // added at full difficulty
-    ISLAND_CONTINUE: 0.82, // chance an existing island carries on into the next segment
+    ISLAND_MAX_HALF: 24, // widest island half-width
+    ISLAND_CHANCE_START: 0.05, // chance (per segment, no island yet) of starting one
+    ISLAND_CHANCE_DIFFICULTY: 0.13, // added at full difficulty
+    ISLAND_CONTINUE: 0.76, // chance an existing island carries on into the next segment
     // Wide-river bias: the "target" half-width is picked from this fraction of the
     // legal range upward at difficulty 0, and from the whole range at difficulty 1.
     TARGET_FLOOR_EASY: 0.55,
     TARGET_HOLD_MAX: 3, // hold a reached target for 0..N segments
     TARGET_STEP_MIN: 4,
     TARGET_STEP_MAX: 16,
-    DIFFICULTY_SECTIONS: 12, // d = min(section, this) / this
+    DIFFICULTY_SECTIONS: 8, // d = min(section, this) / this (the spec's 12, tuned down so the ramp shows by section 5)
 
     // Section 0 is hand-tuned: wide, gentle, no islands.
     SECTION0_HALF_MIN: 52,
@@ -69,7 +72,7 @@
     OBJECT_SKIP_SEGMENTS: 2, // no objects in the first N segments of a section
     OBJECT_MARGIN: 2, // gap between an object and the water's edge
     OBJECT_GAP: 2, // minimum gap between two objects
-    OBJECT_MIN_FREE: 12, // free water that must remain beside a tanker/heli
+    OBJECT_MIN_FREE: 12, // a tanker/heli always leaves a gap this wide on one side
     MOVER_MIN_ROOM: 8, // extra room needed for an object to be a mover
     TANKER_CHANCE: 0.24,
     HELI_CHANCE: 0.2,

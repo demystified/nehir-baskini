@@ -24,7 +24,7 @@
   // 16-bit seed for a section, derived from the fixed master seed with an integer
   // hash, so neighbouring sections get unrelated seeds. Never 0.
   function sectionSeed(index) {
-    var h = (Math.imul(index + 1, 0x9e3779b1) ^ CFG.MASTER_SEED) >>> 0;
+    var h = (Math.imul(index + 1, 0x9e3779b1) ^ CFG.MASTER_SEED ^ Math.imul(CFG.SECTION_SEED_SALT, 0x85ebca6b)) >>> 0;
     h ^= h >>> 15;
     h = Math.imul(h, 0x85ebca6b) >>> 0;
     h ^= h >>> 13;
@@ -135,8 +135,8 @@
     var prevHalf = CFG.BRIDGE_HALF;
     for (k = 0; k < N; k++) {
       var nextHalf = k + 1 < N ? halves[k + 1] : CFG.BRIDGE_HALF;
-      var c = snapDown(Math.min(prevHalf, halves[k], nextHalf) - CFG.MIN_CHANNEL);
-      cap[k] = c >= CFG.ISLAND_MIN && k >= T && k < N - T ? c : 0;
+      var c = Math.min(snapDown(Math.min(prevHalf, halves[k], nextHalf) - CFG.MIN_CHANNEL), CFG.ISLAND_MAX_HALF);
+      cap[k] = c >= CFG.ISLAND_MIN && k >= CFG.ISLAND_SKIP_SEGMENTS && k < N - T ? c : 0;
       prevHalf = halves[k];
     }
     // Envelope: an island must be able to shrink to 0 within ISLAND_MAX_STEP per
@@ -156,7 +156,7 @@
     var startP = CFG.ISLAND_CHANCE_START + CFG.ISLAND_CHANCE_DIFFICULTY * d;
     var cur = 0;
     var target = 0;
-    for (k = T; k < N - T; k++) {
+    for (k = CFG.ISLAND_SKIP_SEGMENTS; k < N - T; k++) {
       var room = env[k];
       if (cur === 0) {
         if (room >= CFG.ISLAND_MIN && rng.chance(startP)) {
@@ -205,11 +205,18 @@
       var candidates = [];
       for (var i = 0; i < spans[k].length; i++) {
         var s = spans[k][i];
-        if (s[1] - s[0] >= w + CFG.OBJECT_MIN_FREE) candidates.push(s);
+        if (s[1] - s[0] >= w + CFG.OBJECT_MIN_FREE + M) candidates.push(s);
       }
       if (!candidates.length) return;
       var span = rng.pick(candidates);
-      var x = rng.int(span[0] + M, span[1] - M - w);
+      // Hug one bank, so a gap of at least OBJECT_MIN_FREE is left on the other side
+      // for the plane to slip past (a ship dead centre in a narrow channel would
+      // leave two gaps too small to use).
+      var lo = span[0] + M;
+      var hi = span[1] - M - w;
+      var x = rng.chance(0.5)
+        ? rng.int(lo, Math.min(hi, span[1] - w - CFG.OBJECT_MIN_FREE))
+        : rng.int(Math.max(lo, span[0] + CFG.OBJECT_MIN_FREE), hi);
       var y = k * SEG + rng.int(1, SEG - h - 1);
       var wantsMover = rng.chance(moverP);
       var dir = rng.chance(0.5) ? 1 : -1;
