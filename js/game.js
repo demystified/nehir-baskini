@@ -202,6 +202,7 @@
     this.stateTime += dt;
     var input = this.input;
     if (input.pressed("guided")) this.guided = !this.guided;
+    if (input.pressed("mute") && this.audio) this.audio.toggleMute();
 
     switch (this.state) {
       case STATES.TITLE:
@@ -231,6 +232,25 @@
         if (this.stateTime >= CFG.GAMEOVER_DELAY && input.pressed("start")) this.toTitle();
         break;
     }
+    this.updateAudio();
+  };
+
+  // One-shot sound effects; a no-op without an audio object (headless tests).
+  Game.prototype.sfx = function (name, arg) {
+    if (this.audio && this.audio[name]) this.audio[name](arg);
+  };
+
+  // The continuous sounds (engine hum, refuel beeps, low-fuel alarm) follow the game state.
+  Game.prototype.updateAudio = function () {
+    if (!this.audio) return;
+    var playing = this.state === STATES.PLAYING;
+    this.audio.update({
+      playing: playing,
+      speed: this.player.speed,
+      refueling: playing && this.refueling && this.fuel < 1,
+      fuel: this.fuel,
+      lowFuel: playing && this.isLowFuel(),
+    });
   };
 
   Game.prototype.anyPressed = function (actions) {
@@ -291,11 +311,14 @@
     return this.fuel < CFG.FUEL_LOW;
   };
 
-  Game.prototype.onTankFull = function () {};
+  Game.prototype.onTankFull = function () {
+    this.sfx("ding");
+  };
 
   Game.prototype.fireMissile = function () {
     var p = this.player;
     this.missile = new RR.Entities.Missile(p.drawX() + Math.floor(CFG.PLAYER_W / 2), p.y + CFG.PLAYER_H);
+    this.sfx("shot");
   };
 
   // Move the missile and resolve what it hits first along its path this step: a
@@ -351,6 +374,7 @@
   Game.prototype.destroyEntity = function (e) {
     e.alive = false;
     this.explodeAt(e.x + e.w / 2, e.y + e.h / 2);
+    this.sfx("explosion", false);
     if (e.type === "bridge") {
       var entry = this.sectionByIndex[e.section];
       if (entry) entry.bridgeAlive = false;
@@ -371,6 +395,7 @@
 
   Game.prototype.award = function (type) {
     var earned = this.scoring.add(CFG.SCORE[type]);
+    if (earned > 0) this.sfx("extraLife");
     return earned;
   };
 
@@ -419,6 +444,7 @@
     var p = this.player;
     this.explosions.push(RR.Entities.createExplosion(p.centerX(), p.y + CFG.PLAYER_H / 2, CFG.DYING_TIME, 2));
     this.flashTime = CFG.FLASH_TIME;
+    this.sfx("explosion", true);
     this.setState(STATES.DYING);
   };
 

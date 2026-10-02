@@ -136,6 +136,42 @@
     RNG_FALLBACK_SEED: 0xace1, // used when a seed would be 0
     RNG_SHIFTS_PER_OUTPUT: 16, // shifts per next(), so consecutive outputs are unrelated
 
+    // ---- Audio (all synthesized with Web Audio) --------------------------------
+    AUDIO: {
+      MASTER_GAIN: 0.8,
+      ENGINE_HZ_MIN: 55, // at the slowest scroll speed
+      ENGINE_HZ_MAX: 110, // at the fastest
+      ENGINE_GAIN: 0.09, // quiet hum
+      ENGINE_SMOOTH: 0.06, // time constant (s) for gain/pitch changes: no clicks
+      SHOT_HZ_START: 900,
+      SHOT_HZ_END: 180,
+      SHOT_TIME: 0.13,
+      SHOT_GAIN: 0.2,
+      SHOT_MIN_GAP: 0.05,
+      EXPLOSION_TIME: 0.6,
+      EXPLOSION_BIG_TIME: 1.0, // the player's plane
+      EXPLOSION_GAIN: 0.5,
+      EXPLOSION_LP_START: 3200, // low-pass sweeps down from here...
+      EXPLOSION_LP_END: 90, // ...to here
+      EXPLOSION_MAX_VOICES: 4,
+      REFUEL_HZ_MIN: 300, // beep pitch at an empty tank...
+      REFUEL_HZ_MAX: 1000, // ...rising to a full one
+      REFUEL_BEEP_TIME: 0.045,
+      REFUEL_BEEP_GAP: 0.09,
+      REFUEL_GAIN: 0.15,
+      DING_HZ: 1760,
+      DING_TIME: 0.7,
+      DING_GAIN: 0.25,
+      ALARM_HZ_A: 880,
+      ALARM_HZ_B: 620,
+      ALARM_TONE_TIME: 0.12,
+      ALARM_GAP: 0.28,
+      ALARM_GAIN: 0.13,
+      EXTRA_LIFE_NOTES: [523.25, 659.25, 783.99, 1046.5], // C5 E5 G5 C6
+      EXTRA_LIFE_NOTE_TIME: 0.09,
+      EXTRA_LIFE_GAIN: 0.2,
+    },
+
     // ---- Palette (Atari-flavoured) --------------------------------------------
     COLORS: {
       water: "#2d50c8",

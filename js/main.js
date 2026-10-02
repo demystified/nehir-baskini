@@ -15,7 +15,16 @@
 
   RR.Sprites.init();
   RR.Input.attachKeyboard(window);
-  var game = new RR.Game({ input: RR.Input });
+  var game = new RR.Game({ input: RR.Input, audio: RR.Audio });
+
+  // The AudioContext may only be created/resumed inside a user gesture. Key presses and
+  // pointer releases (taps) both count, on desktop and on phones.
+  function unlockAudio() {
+    RR.Audio.unlock();
+  }
+  window.addEventListener("keydown", unlockAudio, true);
+  window.addEventListener("pointerup", unlockAudio, true);
+  window.addEventListener("touchend", unlockAudio, true);
 
   // Largest integer scale that fits the window; fractional fit if even 2x doesn't fit.
   function computeScale(availW, availH) {
