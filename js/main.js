@@ -23,7 +23,7 @@
   function computeScale(availW, availH) {
     var fit = Math.min(availW / CFG.VIEW_W, availH / CFG.VIEW_H);
     var whole = Math.floor(fit);
-    return whole >= 2 ? whole : fit;
+    return whole >= CFG.MIN_INTEGER_SCALE ? whole : fit;
   }
 
   function present() {
