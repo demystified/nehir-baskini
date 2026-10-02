@@ -20,13 +20,19 @@ function memoryStorage(initial) {
   };
 }
 
-// A game wired to a fresh input state and an in-memory score store.
+// A game wired to a fresh input state and an in-memory score store. By default it is
+// put straight into PLAYING at section 0; pass { title: true } to leave it on the title
+// screen, or { ready: true } to stop at READY.
 function makeGame(opts) {
   opts = opts || {};
   const input = new RR.InputState();
   const storage = opts.storage || memoryStorage();
   const scoring = new RR.Scoring({ storage });
   const game = new RR.Game({ input, scoring, audio: opts.audio || null });
+  if (!opts.title) {
+    game.newGame();
+    if (!opts.ready) game.beginPlay();
+  }
   return { game, input, scoring, storage };
 }
 

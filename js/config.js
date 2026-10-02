@@ -126,6 +126,7 @@
     GAMEOVER_DELAY: 1.0, // ignore confirm presses for this long after GAME OVER
     READY_ARM_TIME: 0.25,
     TITLE_SCROLL: 30, // demo scroll speed on the title screen
+    TITLE_DEMO_SECTION: 2, // the title screen's demo river starts here
     FLASH_TIME: 0.18, // white screen flash when the player explodes
     UNLOAD_MARGIN: 48, // keep sections/entities this far below the camera
     LOAD_MARGIN: 32, // load sections this far above the visible area

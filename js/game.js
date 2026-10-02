@@ -44,10 +44,23 @@
 
   // ---- Game ---------------------------------------------------------------------------------
 
+  var STATES = {
+    TITLE: "TITLE",
+    READY: "READY",
+    PLAYING: "PLAYING",
+    PAUSED: "PAUSED",
+    DYING: "DYING",
+    GAMEOVER: "GAMEOVER",
+  };
+
+  // Inputs that start a round from READY.
+  var READY_ACTIONS = ["left", "right", "up", "down", "fire", "start"];
+
   function Game(opts) {
     opts = opts || {};
     this.input = opts.input || RR.Input;
     this.scoring = opts.scoring || new RR.Scoring();
+    this.audio = opts.audio || null;
     this.player = new RR.Entities.Player();
     this.cameraY = 0; // world y at the bottom edge of the playfield
     this.sections = []; // loaded sections: { index, section, base, bridgeAlive }
@@ -59,10 +72,19 @@
     this.spawnEnemies = true;
     this.time = 0;
     this.checkpoint = 0; // section index to respawn at
+    this.floorSection = 0; // lowest section index that may be loaded
     this.fuel = CFG.FUEL_START; // 0..1
     this.refueling = false; // overlapping a depot this step
-    this.startSection(0);
+    this.state = STATES.TITLE;
+    this.stateTime = 0;
+    this.readyArmed = false;
+    this.flashTime = 0; // white flash when the plane explodes
+    this.dyingReason = null;
+    this.newRecord = false;
+    this.toTitle();
   }
+
+  Game.STATES = STATES;
 
   // (Re)build the world at the start of a section: fresh terrain and enemies from the
   // section's seed, camera at the section start, plane centred.
@@ -74,6 +96,7 @@
     this.missile = null;
     this.fuel = CFG.FUEL_START;
     this.refueling = false;
+    this.floorSection = index;
     this.cameraY = River.sectionBase(index);
     this.player.reset();
     this.player.y = this.cameraY + CFG.PLAYER_BOTTOM_MARGIN;
@@ -92,7 +115,9 @@
 
   // Keep exactly the sections that touch the visible area (plus a margin) loaded.
   Game.prototype.ensureSections = function () {
-    var lo = Math.max(0, River.sectionAt(this.cameraY - CFG.UNLOAD_MARGIN));
+    // Never load sections below the one the world (re)started in: after a respawn
+    // there is nothing to see down there, and its enemies would only be clutter.
+    var lo = Math.max(this.floorSection, River.sectionAt(this.cameraY - CFG.UNLOAD_MARGIN));
     var hi = River.sectionAt(this.cameraY + PLAY_H + CFG.LOAD_MARGIN);
     var kept = [];
     var map = {};
@@ -119,10 +144,110 @@
     this.sectionByIndex = map;
   };
 
+  Game.prototype.setState = function (state) {
+    this.state = state;
+    this.stateTime = 0;
+  };
+
+  // TITLE: the river scrolls slowly as a demo, with no enemies.
+  Game.prototype.toTitle = function () {
+    this.scoring.reset();
+    this.checkpoint = 0;
+    this.spawnEnemies = false;
+    this.startSection(CFG.TITLE_DEMO_SECTION);
+    this.setState(STATES.TITLE);
+  };
+
+  // A fresh game from the title screen: section 0, full reserves, then READY.
+  Game.prototype.newGame = function () {
+    this.scoring.reset();
+    this.checkpoint = 0;
+    this.spawnEnemies = true;
+    this.newRecord = false;
+    this.startSection(0);
+    this.beginReady();
+  };
+
+  // River frozen, plane visible, waiting for the player.
+  Game.prototype.beginReady = function () {
+    this.setState(STATES.READY);
+    // A key still held from before (e.g. fire when dying) must be released first.
+    this.readyArmed = !this.anyHeld(READY_ACTIONS);
+  };
+
+  Game.prototype.beginPlay = function () {
+    this.setState(STATES.PLAYING);
+  };
+
+  Game.prototype.anyHeld = function (actions) {
+    for (var i = 0; i < actions.length; i++) if (this.input.held(actions[i])) return true;
+    return false;
+  };
+
+  Game.prototype.pause = function () {
+    if (this.state === STATES.PLAYING) this.setState(STATES.PAUSED);
+  };
+
+  Game.prototype.resume = function () {
+    if (this.state === STATES.PAUSED) this.setState(STATES.PLAYING);
+  };
+
+  // Called when the browser tab is hidden.
+  Game.prototype.autoPause = function () {
+    this.pause();
+  };
+
   Game.prototype.update = function (dt) {
     this.time += dt;
-    if (this.input.pressed("guided")) this.guided = !this.guided;
-    this.updatePlaying(dt);
+    this.stateTime += dt;
+    var input = this.input;
+    if (input.pressed("guided")) this.guided = !this.guided;
+
+    switch (this.state) {
+      case STATES.TITLE:
+        this.cameraY += CFG.TITLE_SCROLL * dt;
+        this.player.y = this.cameraY + CFG.PLAYER_BOTTOM_MARGIN;
+        this.ensureSections();
+        if (input.pressed("start")) this.newGame();
+        break;
+      case STATES.READY:
+        if (!this.anyHeld(READY_ACTIONS)) this.readyArmed = true;
+        if (input.anyActive(READY_ACTIONS) && (this.readyArmed || this.anyPressed(READY_ACTIONS))) this.beginPlay();
+        break;
+      case STATES.PLAYING:
+        if (input.pressed("pause")) this.pause();
+        else this.updatePlaying(dt);
+        break;
+      case STATES.PAUSED:
+        if (input.pressed("pause") || input.pressed("start")) this.resume();
+        break;
+      case STATES.DYING:
+        this.updateExplosions(dt);
+        this.flashTime = Math.max(0, this.flashTime - dt);
+        if (this.stateTime >= CFG.DYING_TIME) this.finishDying();
+        break;
+      case STATES.GAMEOVER:
+        this.flashTime = 0;
+        if (this.stateTime >= CFG.GAMEOVER_DELAY && input.pressed("start")) this.toTitle();
+        break;
+    }
+  };
+
+  Game.prototype.anyPressed = function (actions) {
+    for (var i = 0; i < actions.length; i++) if (this.input.pressed(actions[i])) return true;
+    return false;
+  };
+
+  // The explosion is over: respawn at the checkpoint section, or GAME OVER.
+  Game.prototype.finishDying = function () {
+    if (this.scoring.useReserve()) {
+      this.startSection(this.checkpoint); // fresh terrain and enemies, full fuel, plane centred
+      this.beginReady();
+    } else {
+      this.newRecord = this.scoring.commitHigh();
+      this.explosions = [];
+      this.setState(STATES.GAMEOVER);
+    }
   };
 
   Game.prototype.updatePlaying = function (dt) {
@@ -285,11 +410,16 @@
     return false;
   };
 
-  // Placeholder (Task 5): log it and start the section over. Task 7 replaces this
-  // with the DYING state and lives.
+  // The plane is lost: explosion and flash, then (after DYING_TIME) a respawn or GAME OVER.
   Game.prototype.die = function (reason) {
-    console.log("death: " + reason + " in section " + this.currentSection());
-    this.startSection(this.currentSection());
+    if (this.state !== STATES.PLAYING) return;
+    this.dyingReason = reason;
+    this.missile = null;
+    this.refueling = false;
+    var p = this.player;
+    this.explosions.push(RR.Entities.createExplosion(p.centerX(), p.y + CFG.PLAYER_H / 2, CFG.DYING_TIME, 2));
+    this.flashTime = CFG.FLASH_TIME;
+    this.setState(STATES.DYING);
   };
 
   // Drop what has scrolled out of view or been destroyed.
@@ -462,13 +592,93 @@
     }
   };
 
+  // ---- Screens and overlays -----------------------------------------------------------------
+
+  // Text with a 1 px dark shadow, readable over water and land alike.
+  function shadowText(ctx, text, cx, y, color, scale) {
+    var S = RR.Sprites;
+    S.drawTextCentered(ctx, text, cx + scale, y + scale, C.black, scale);
+    S.drawTextCentered(ctx, text, cx, y, color, scale);
+  }
+
+  function dimPanel(ctx, x, y, w, h, alpha) {
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = C.black;
+    ctx.fillRect(x, y, w, h);
+    ctx.globalAlpha = 1;
+  }
+
+  Game.prototype.blink = function (rate) {
+    return Math.floor(this.time * rate) % 2 === 0;
+  };
+
+  Game.prototype.renderTitle = function (ctx) {
+    var S = RR.Sprites;
+    var cx = W / 2;
+    dimPanel(ctx, 6, 10, W - 12, 130, 0.62);
+    shadowText(ctx, CFG.TITLE, cx, 20, C.explosionYellow, 3);
+    ctx.fillStyle = C.explosionOrange;
+    ctx.fillRect(14, 42, W - 28, 1);
+    var lines = [
+      ["ARROWS OR WASD", "STEER"],
+      ["UP / DOWN", "FASTER / SLOWER"],
+      ["SPACE", "FIRE (HOLD = AUTO)"],
+      ["P", "PAUSE"],
+      ["M", "MUTE"],
+      ["G", "GUIDED MISSILES"],
+    ];
+    var y = 50;
+    for (var i = 0; i < lines.length; i++) {
+      S.drawText(ctx, lines[i][0], 14, y, C.hudLight, 1);
+      S.drawText(ctx, lines[i][1], 76, y, C.white, 1);
+      y += 8;
+    }
+    shadowText(ctx, "HIGH SCORE " + this.scoring.highScore, cx, 106, C.hudText, 1);
+    if (this.blink(2)) shadowText(ctx, "PRESS ENTER OR SPACE", cx, 124, C.white, 1);
+  };
+
+  Game.prototype.renderReady = function (ctx) {
+    dimPanel(ctx, 20, 58, W - 40, 40, 0.45);
+    shadowText(ctx, "READY", W / 2, 64, C.hudText, 2);
+    if (this.blink(2)) shadowText(ctx, "PRESS FIRE OR MOVE", W / 2, 84, C.white, 1);
+  };
+
+  Game.prototype.renderPaused = function (ctx) {
+    dimPanel(ctx, 20, 58, W - 40, 40, 0.55);
+    shadowText(ctx, "PAUSED", W / 2, 64, C.hudText, 2);
+    shadowText(ctx, "PRESS P TO RESUME", W / 2, 84, C.white, 1);
+  };
+
+  Game.prototype.renderGameOver = function (ctx) {
+    dimPanel(ctx, 14, 40, W - 28, 92, 0.65);
+    shadowText(ctx, "GAME OVER", W / 2, 48, C.needle, 2);
+    shadowText(ctx, "SCORE " + this.scoring.score, W / 2, 72, C.hudText, 1);
+    shadowText(ctx, "HIGH SCORE " + this.scoring.highScore, W / 2, 84, C.hudText, 1);
+    if (this.newRecord && this.blink(3)) shadowText(ctx, "NEW HIGH SCORE", W / 2, 98, C.explosionYellow, 1);
+    if (this.stateTime >= CFG.GAMEOVER_DELAY && this.blink(2)) shadowText(ctx, "PRESS ENTER", W / 2, 114, C.white, 1);
+  };
+
   Game.prototype.render = function (ctx) {
+    var st = this.state;
     this.renderTerrain(ctx);
-    this.renderEntities(ctx);
-    this.renderMissile(ctx);
-    this.renderPlayer(ctx);
-    this.renderExplosions(ctx);
+    if (st !== STATES.TITLE) {
+      this.renderEntities(ctx);
+      this.renderMissile(ctx);
+      var showPlane = st === STATES.PLAYING || st === STATES.PAUSED || (st === STATES.READY && this.blink(8));
+      if (showPlane) this.renderPlayer(ctx);
+      this.renderExplosions(ctx);
+    }
+    if (this.flashTime > 0) {
+      ctx.globalAlpha = Math.min(1, this.flashTime / CFG.FLASH_TIME) * 0.85;
+      ctx.fillStyle = C.white;
+      ctx.fillRect(0, 0, W, PLAY_H);
+      ctx.globalAlpha = 1;
+    }
     RR.Hud.draw(ctx, this.hudModel());
+    if (st === STATES.TITLE) this.renderTitle(ctx);
+    else if (st === STATES.READY) this.renderReady(ctx);
+    else if (st === STATES.PAUSED) this.renderPaused(ctx);
+    else if (st === STATES.GAMEOVER) this.renderGameOver(ctx);
   };
 
   Game.prototype.hudModel = function () {
@@ -476,7 +686,7 @@
       score: this.scoring.score,
       fuel: this.fuel,
       reserves: this.scoring.reserves,
-      bridge: this.currentSection() + 1,
+      bridge: this.state === STATES.TITLE ? 1 : this.currentSection() + 1,
       guided: this.guided,
       time: this.time,
     };

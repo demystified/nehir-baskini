@@ -62,6 +62,18 @@
 
   RR.Main = { computeScale: computeScale, game: game };
 
+  // Tapping (or clicking) the screen starts and confirms, like Enter.
+  canvas.addEventListener("pointerdown", function () {
+    RR.Input.tap("start");
+  });
+
+  // Pause automatically when the tab is hidden, and don't let the clock jump when it
+  // comes back.
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) game.autoPause();
+    last = null;
+  });
+
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", resize);
   resize();
