@@ -11,13 +11,10 @@
   buffer.width = CFG.VIEW_W;
   buffer.height = CFG.VIEW_H;
   var bctx = buffer.getContext("2d");
+  bctx.imageSmoothingEnabled = false;
 
-  function drawFrame() {
-    bctx.fillStyle = CFG.COLORS.water;
-    bctx.fillRect(0, 0, CFG.VIEW_W, CFG.PLAY_H);
-    bctx.fillStyle = CFG.COLORS.hud;
-    bctx.fillRect(0, CFG.PLAY_H, CFG.VIEW_W, CFG.HUD_H);
-  }
+  RR.Sprites.init();
+  var game = new RR.Game();
 
   // Largest integer scale that fits the window; fractional fit if even 2x doesn't fit.
   function computeScale(availW, availH) {
@@ -44,10 +41,27 @@
     present();
   }
 
-  RR.Main = { computeScale: computeScale };
+  // Fixed 1/60 s update step with an accumulator; frame time clamped to 0.25 s.
+  var last = null;
+  var acc = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (last === null) last = now;
+    var elapsed = Math.min((now - last) / 1000, CFG.MAX_FRAME_TIME);
+    last = now;
+    acc += elapsed;
+    while (acc >= CFG.FIXED_DT) {
+      game.update(CFG.FIXED_DT);
+      acc -= CFG.FIXED_DT;
+    }
+    game.render(bctx);
+    present();
+  }
+
+  RR.Main = { computeScale: computeScale, game: game };
 
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", resize);
-  drawFrame();
   resize();
+  requestAnimationFrame(frame);
 })();

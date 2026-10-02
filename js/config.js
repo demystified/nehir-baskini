@@ -153,8 +153,8 @@
       heli: "#1e6e3a",
       heliDark: "#124a26",
       heliRotor: "#d0d0d0",
-      jet: "#5a5a90",
-      jetDark: "#3a3a66",
+      jet: "#9a9ad8", // spec says #5a5a90, which is too dim against water
+      jetDark: "#505098",
       depot: "#c03030",
       depotLetters: "#f0f0f0",
       houseWall: "#d8d0b0",
