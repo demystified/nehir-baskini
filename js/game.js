@@ -44,13 +44,33 @@
 
   // ---- Game ---------------------------------------------------------------------------------
 
-  function Game() {
+  function Game(opts) {
+    opts = opts || {};
+    this.input = opts.input || RR.Input;
+    this.player = new RR.Entities.Player();
     this.cameraY = 0; // world y at the bottom edge of the playfield
     this.sections = []; // loaded sections: { index, section, base }
     this.sectionByIndex = {};
     this.time = 0;
-    this.ensureSections();
+    this.checkpoint = 0; // section index to respawn at
+    this.startSection(0);
   }
+
+  // (Re)build the world at the start of a section: fresh terrain from its seed,
+  // camera at the section start, plane centred.
+  Game.prototype.startSection = function (index) {
+    this.sections = [];
+    this.sectionByIndex = {};
+    this.cameraY = River.sectionBase(index);
+    this.player.reset();
+    this.player.y = this.cameraY + CFG.PLAYER_BOTTOM_MARGIN;
+    this.ensureSections();
+  };
+
+  // Index of the section the plane is currently in.
+  Game.prototype.currentSection = function () {
+    return River.sectionAt(this.player.y);
+  };
 
   // Screen y (rounded, so adjacent segments never leave a seam) of a world y.
   Game.prototype.screenY = function (worldY) {
@@ -87,9 +107,17 @@
 
   Game.prototype.update = function (dt) {
     this.time += dt;
-    // Temporary (Task 3): auto-scroll so the river can be inspected.
-    this.cameraY += CFG.SCROLL_NORMAL * dt;
+    var player = this.player;
+    player.update(dt, this.input);
+    this.cameraY += player.speed * dt;
+    player.y = this.cameraY + CFG.PLAYER_BOTTOM_MARGIN;
     this.ensureSections();
+
+    if (!RR.Collision.boxOverWater(this.sections, player.hitbox())) {
+      // Placeholder death (Task 4): log it and start the section over.
+      console.log("death: hit the bank in section " + this.currentSection());
+      this.startSection(this.currentSection());
+    }
   };
 
   // ---- Rendering ----------------------------------------------------------------------------
@@ -209,8 +237,15 @@
     }
   };
 
+  Game.prototype.renderPlayer = function (ctx) {
+    var sprite = RR.Sprites.get("player_" + this.player.frame);
+    var y = this.screenY(this.player.y + CFG.PLAYER_H);
+    ctx.drawImage(sprite, this.player.drawX(), y);
+  };
+
   Game.prototype.render = function (ctx) {
     this.renderTerrain(ctx);
+    this.renderPlayer(ctx);
     ctx.fillStyle = C.hud;
     ctx.fillRect(0, PLAY_H, W, CFG.HUD_H);
   };

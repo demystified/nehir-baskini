@@ -14,7 +14,8 @@
   bctx.imageSmoothingEnabled = false;
 
   RR.Sprites.init();
-  var game = new RR.Game();
+  RR.Input.attachKeyboard(window);
+  var game = new RR.Game({ input: RR.Input });
 
   // Largest integer scale that fits the window; fractional fit if even 2x doesn't fit.
   function computeScale(availW, availH) {
@@ -52,6 +53,7 @@
     acc += elapsed;
     while (acc >= CFG.FIXED_DT) {
       game.update(CFG.FIXED_DT);
+      RR.Input.endFrame(); // "pressed" flags last for exactly one update
       acc -= CFG.FIXED_DT;
     }
     game.render(bctx);
