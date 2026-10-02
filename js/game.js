@@ -47,20 +47,29 @@
   function Game(opts) {
     opts = opts || {};
     this.input = opts.input || RR.Input;
+    this.scoring = opts.scoring || new RR.Scoring();
     this.player = new RR.Entities.Player();
     this.cameraY = 0; // world y at the bottom edge of the playfield
-    this.sections = []; // loaded sections: { index, section, base }
+    this.sections = []; // loaded sections: { index, section, base, bridgeAlive }
     this.sectionByIndex = {};
+    this.entities = []; // enemies, depots and bridges (alive or just destroyed)
+    this.explosions = [];
+    this.missile = null; // at most one at a time
+    this.guided = false;
+    this.spawnEnemies = true;
     this.time = 0;
     this.checkpoint = 0; // section index to respawn at
     this.startSection(0);
   }
 
-  // (Re)build the world at the start of a section: fresh terrain from its seed,
-  // camera at the section start, plane centred.
+  // (Re)build the world at the start of a section: fresh terrain and enemies from the
+  // section's seed, camera at the section start, plane centred.
   Game.prototype.startSection = function (index) {
     this.sections = [];
     this.sectionByIndex = {};
+    this.entities = [];
+    this.explosions = [];
+    this.missile = null;
     this.cameraY = River.sectionBase(index);
     this.player.reset();
     this.player.y = this.cameraY + CFG.PLAYER_BOTTOM_MARGIN;
@@ -93,9 +102,10 @@
     }
     for (i = lo; i <= hi; i++) {
       if (!map[i]) {
-        var entry = { index: i, section: River.generateSection(i), base: River.sectionBase(i) };
+        var entry = { index: i, section: River.generateSection(i), base: River.sectionBase(i), bridgeAlive: true };
         kept.push(entry);
         map[i] = entry;
+        if (this.spawnEnemies) this.entities.push.apply(this.entities, RR.Entities.spawnSection(entry));
       }
     }
     kept.sort(function (a, b) {
@@ -107,17 +117,160 @@
 
   Game.prototype.update = function (dt) {
     this.time += dt;
+    if (this.input.pressed("guided")) this.guided = !this.guided;
+    this.updatePlaying(dt);
+  };
+
+  Game.prototype.updatePlaying = function (dt) {
     var player = this.player;
-    player.update(dt, this.input);
+    var input = this.input;
+
+    player.update(dt, input);
     this.cameraY += player.speed * dt;
     player.y = this.cameraY + CFG.PLAYER_BOTTOM_MARGIN;
     this.ensureSections();
 
-    if (!RR.Collision.boxOverWater(this.sections, player.hitbox())) {
-      // Placeholder death (Task 4): log it and start the section over.
-      console.log("death: hit the bank in section " + this.currentSection());
-      this.startSection(this.currentSection());
+    var world = { cameraY: this.cameraY, playerY: player.y, sections: this.sections };
+    var i;
+    for (i = 0; i < this.entities.length; i++) RR.Entities.updateEnemy(this.entities[i], dt, world);
+
+    if (!this.missile && input.held("fire")) this.fireMissile();
+    if (this.missile) this.updateMissile(dt);
+    this.updateExplosions(dt);
+
+    if (this.checkPlayerCollisions()) return;
+    this.cleanup();
+  };
+
+  Game.prototype.fireMissile = function () {
+    var p = this.player;
+    this.missile = new RR.Entities.Missile(p.drawX() + Math.floor(CFG.PLAYER_W / 2), p.y + CFG.PLAYER_H);
+  };
+
+  // Move the missile and resolve what it hits first along its path this step: a
+  // target, the bank (tip outside water), or the top of the screen.
+  Game.prototype.updateMissile = function (dt) {
+    var m = this.missile;
+    var oldBottom = m.y;
+    var oldTip = m.tipY();
+    m.y += (CFG.MISSILE_SPEED + this.player.speed) * dt;
+    if (this.guided) m.x = this.player.drawX() + Math.floor(CFG.PLAYER_W / 2);
+    var newTip = m.tipY();
+
+    if (m.y >= this.cameraY + PLAY_H) {
+      this.missile = null; // left the top of the screen
+      return;
     }
+
+    // First point along the path where the tip is not over water.
+    var bankY = Infinity;
+    var steps = Math.max(1, Math.ceil((newTip - oldTip) / CFG.MISSILE_SWEEP_STEP));
+    for (var i = 0; i <= steps; i++) {
+      var y = oldTip + ((newTip - oldTip) * i) / steps;
+      if (!RR.Collision.pointInWater(this.sections, m.tipX(), y)) {
+        bankY = y;
+        break;
+      }
+    }
+
+    // Nearest target the swept box touches.
+    var swept = { x: m.x, y: oldBottom, w: m.w, h: newTip - oldBottom };
+    var target = null;
+    var targetY = Infinity;
+    for (var j = 0; j < this.entities.length; j++) {
+      var e = this.entities[j];
+      if (!e.alive || !RR.Entities.HITTABLE[e.type]) continue;
+      if (!RR.Collision.aabbOverlap(swept, e)) continue;
+      var contact = Math.max(oldTip, e.y);
+      if (contact < targetY) {
+        targetY = contact;
+        target = e;
+      }
+    }
+
+    if (target && targetY <= bankY) {
+      this.missile = null;
+      this.destroyEntity(target);
+    } else if (bankY < Infinity) {
+      this.missile = null; // hit the bank
+    }
+  };
+
+  // A target shot down by the missile: points, explosion, and bridge consequences.
+  Game.prototype.destroyEntity = function (e) {
+    e.alive = false;
+    this.explodeAt(e.x + e.w / 2, e.y + e.h / 2);
+    if (e.type === "bridge") {
+      var entry = this.sectionByIndex[e.section];
+      if (entry) entry.bridgeAlive = false;
+      this.checkpoint = Math.max(this.checkpoint, e.section + 1);
+      for (var i = 1; i < CFG.BRIDGE_EXPLOSIONS; i++) {
+        var fx = e.x + (e.w * i) / CFG.BRIDGE_EXPLOSIONS;
+        this.explodeAt(fx, e.y + e.h / 2, i * 0.08);
+      }
+    }
+    this.award(e.type);
+  };
+
+  Game.prototype.explodeAt = function (cx, cy, delay) {
+    var ex = RR.Entities.createExplosion(cx, cy, CFG.EXPLOSION_TIME, 1);
+    ex.t = -(delay || 0); // negative time = waiting to start
+    this.explosions.push(ex);
+  };
+
+  Game.prototype.award = function (type) {
+    var earned = this.scoring.add(CFG.SCORE[type]);
+    return earned;
+  };
+
+  Game.prototype.updateExplosions = function (dt) {
+    var keep = [];
+    for (var i = 0; i < this.explosions.length; i++) {
+      var ex = this.explosions[i];
+      ex.t += dt;
+      if (ex.t < ex.duration) keep.push(ex);
+    }
+    this.explosions = keep;
+  };
+
+  // Terrain, enemies, the bridge; also refuelling at depots (Task 6). Returns true if
+  // the player died.
+  Game.prototype.checkPlayerCollisions = function () {
+    var hb = this.player.hitbox();
+    if (!RR.Collision.boxOverWater(this.sections, hb)) {
+      this.die("bank");
+      return true;
+    }
+    for (var i = 0; i < this.entities.length; i++) {
+      var e = this.entities[i];
+      if (!e.alive || !RR.Collision.aabbOverlap(hb, e)) continue;
+      if (e.type === "depot") continue;
+      if (e.type !== "bridge") {
+        e.alive = false;
+        this.explodeAt(e.x + e.w / 2, e.y + e.h / 2);
+      }
+      this.die(e.type);
+      return true;
+    }
+    return false;
+  };
+
+  // Placeholder (Task 5): log it and start the section over. Task 7 replaces this
+  // with the DYING state and lives.
+  Game.prototype.die = function (reason) {
+    console.log("death: " + reason + " in section " + this.currentSection());
+    this.startSection(this.currentSection());
+  };
+
+  // Drop what has scrolled out of view or been destroyed.
+  Game.prototype.cleanup = function () {
+    var limit = this.cameraY - CFG.UNLOAD_MARGIN;
+    var keep = [];
+    for (var i = 0; i < this.entities.length; i++) {
+      var e = this.entities[i];
+      if (e.alive && e.y + e.h > limit) keep.push(e);
+    }
+    this.entities = keep;
   };
 
   // ---- Rendering ----------------------------------------------------------------------------
@@ -172,11 +325,11 @@
     var y0 = entry.base + entry.section.bridge.y;
     var bx0 = entry.section.bridge.x0;
     var bx1 = entry.section.bridge.x1;
-    var deckTop = this.screenY(y0 + 14);
-    var deckBot = this.screenY(y0 + 2);
-    var roadTop = this.screenY(y0 + 12);
-    var roadBot = this.screenY(y0 + 4);
-    var lineY = this.screenY(y0 + 8);
+    var deckTop = this.screenY(y0 + CFG.BRIDGE_DECK_Y + CFG.BRIDGE_DECK_H);
+    var deckBot = this.screenY(y0 + CFG.BRIDGE_DECK_Y);
+    var roadTop = this.screenY(y0 + CFG.BRIDGE_ROAD_Y + CFG.BRIDGE_ROAD_H);
+    var roadBot = this.screenY(y0 + CFG.BRIDGE_ROAD_Y);
+    var lineY = this.screenY(y0 + CFG.BRIDGE_ROAD_Y + CFG.BRIDGE_ROAD_H / 2);
     var x;
 
     // road on the banks
@@ -237,15 +390,54 @@
     }
   };
 
+  Game.prototype.renderEntity = function (ctx, e) {
+    var name;
+    if (e.type === "tanker") name = "tanker_" + (e.dir < 0 ? "l" : "r");
+    else if (e.type === "heli") name = "heli_" + (e.dir < 0 ? "l" : "r") + "_" + e.frame;
+    else if (e.type === "jet") name = "jet_" + (e.dir < 0 ? "l" : "r");
+    else if (e.type === "depot") name = "depot";
+    else return; // the bridge is part of the terrain
+    ctx.drawImage(RR.Sprites.get(name), Math.round(e.x), this.screenY(e.y + e.h));
+  };
+
+  Game.prototype.renderEntities = function (ctx) {
+    var top = this.cameraY + PLAY_H;
+    for (var i = 0; i < this.entities.length; i++) {
+      var e = this.entities[i];
+      if (!e.alive || e.y + e.h <= this.cameraY || e.y >= top) continue;
+      this.renderEntity(ctx, e);
+    }
+  };
+
   Game.prototype.renderPlayer = function (ctx) {
     var sprite = RR.Sprites.get("player_" + this.player.frame);
     var y = this.screenY(this.player.y + CFG.PLAYER_H);
     ctx.drawImage(sprite, this.player.drawX(), y);
   };
 
+  Game.prototype.renderMissile = function (ctx) {
+    var m = this.missile;
+    if (!m) return;
+    ctx.fillStyle = C.white;
+    ctx.fillRect(m.x, this.screenY(m.tipY()), m.w, m.h);
+  };
+
+  Game.prototype.renderExplosions = function (ctx) {
+    for (var i = 0; i < this.explosions.length; i++) {
+      var ex = this.explosions[i];
+      if (ex.t < 0) continue;
+      var sprite = RR.Sprites.get("explosion_" + RR.Entities.explosionFrame(ex));
+      var size = sprite.width * ex.scale;
+      ctx.drawImage(sprite, Math.round(ex.cx - size / 2), Math.round(this.screenY(ex.cy) - size / 2), size, size);
+    }
+  };
+
   Game.prototype.render = function (ctx) {
     this.renderTerrain(ctx);
+    this.renderEntities(ctx);
+    this.renderMissile(ctx);
     this.renderPlayer(ctx);
+    this.renderExplosions(ctx);
     ctx.fillStyle = C.hud;
     ctx.fillRect(0, PLAY_H, W, CFG.HUD_H);
   };

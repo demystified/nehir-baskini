@@ -100,6 +100,10 @@
     JET_TRIGGER_DIST: 100, // a jet starts its run when this far above the camera bottom
     JET_START_GAP: 2, // how far off-screen a jet waits
     HELI_ROTOR_FPS: 16,
+    BRIDGE_DECK_Y: 2, // the bridge deck occupies rows 2..14 of its 16 px segment
+    BRIDGE_DECK_H: 12,
+    BRIDGE_ROAD_Y: 4, // road surface rows (on the deck and across the banks)
+    BRIDGE_ROAD_H: 8,
 
     // ---- Fuel ------------------------------------------------------------------
     FUEL_DRAIN: 1 / 32, // per second, constant
