@@ -121,6 +121,7 @@
     MAX_RESERVES: 9,
     HIGHSCORE_KEY: "riverRaid.highScore",
     MUTE_KEY: "riverRaid.muted",
+    SETTINGS_KEY: "riverRaid.settings",
 
     // ---- Timing --------------------------------------------------------------------
     DYING_TIME: 1.0, // explosion before respawn / game over

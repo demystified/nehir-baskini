@@ -175,6 +175,20 @@
     "y..y..y",
   ];
 
+  // Settings gear (title screen): eight teeth around a hollow hub.
+  var GEAR = [
+    "....#....",
+    ".#.###.#.",
+    "..#####..",
+    ".##...##.",
+    "###...###",
+    ".##...##.",
+    "..#####..",
+    ".#.###.#.",
+    "....#....",
+  ];
+  var GEAR_PAL = { "#": C.hudLight };
+
   var DEFS = {
     player_0: { rows: PLAYER_LEVEL, palette: PLAYER_PAL },
     player_1: { rows: PLAYER_LEFT, palette: PLAYER_PAL },
@@ -193,6 +207,7 @@
     explosion_1: { rows: EXPLOSION[1], palette: EXP_PAL },
     explosion_2: { rows: EXPLOSION[2], palette: EXP_PAL },
     life: { rows: LIFE, palette: LIFE_PAL },
+    gear: { rows: GEAR, palette: GEAR_PAL },
   };
 
   // ---- Pixel font: 3 x 5 glyphs (plus an 11-wide half sign) ----------------------------------
@@ -246,6 +261,8 @@
     ")": [".#.", "..#", "..#", "..#", ".#."],
     "=": ["...", "###", "...", "###", "..."],
     ",": ["...", "...", "...", ".#.", "#.."],
+    ">": ["#..", ".#.", "..#", ".#.", "#.."],
+    "<": ["..#", ".#.", "#..", ".#.", "..#"],
   };
 
   // The half sign (U+00BD) is composed from "1", "/" and "2" (11 px wide).

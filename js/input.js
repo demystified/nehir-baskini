@@ -3,7 +3,7 @@
   globalThis.RR = globalThis.RR || {};
 
   // Actions (not raw keys) are what the game asks about.
-  var ACTIONS = ["left", "right", "up", "down", "fire", "start", "pause", "mute", "guided"];
+  var ACTIONS = ["left", "right", "up", "down", "fire", "start", "pause", "mute", "guided", "settings", "back"];
 
   // Keyboard layout: event.code -> actions it triggers.
   var KEY_MAP = {
@@ -21,6 +21,8 @@
     KeyP: ["pause"],
     KeyM: ["mute"],
     KeyG: ["guided"],
+    KeyO: ["settings"],
+    Escape: ["back"],
   };
 
   // Keys whose default browser behaviour (scrolling, button activation) we suppress.
@@ -184,7 +186,6 @@
       } catch (err) {
         /* not fatal */
       }
-      self.tap("start"); // any touch also confirms (title, pause, game over)
       setPad(e.pointerId, padDirs(e));
     });
     pad.addEventListener("pointermove", function (e) {

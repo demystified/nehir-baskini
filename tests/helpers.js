@@ -4,7 +4,7 @@
 
 const path = require("node:path");
 
-const MODULES = ["config", "rng", "river", "collision", "scoring", "input", "entities", "game"];
+const MODULES = ["config", "rng", "river", "collision", "scoring", "settings", "input", "entities", "game"];
 for (const m of MODULES) require(path.join("..", "js", m + ".js"));
 
 const RR = globalThis.RR;
@@ -28,12 +28,13 @@ function makeGame(opts) {
   const input = new RR.InputState();
   const storage = opts.storage || memoryStorage();
   const scoring = new RR.Scoring({ storage });
-  const game = new RR.Game({ input, scoring, audio: opts.audio || null });
+  const settings = new RR.Settings({ storage });
+  const game = new RR.Game({ input, scoring, settings, audio: opts.audio || null });
   if (!opts.title) {
     game.newGame();
     if (!opts.ready) game.beginPlay();
   }
-  return { game, input, scoring, storage };
+  return { game, input, scoring, settings, storage };
 }
 
 // Advance the game by n fixed steps, clearing one-frame "pressed" flags like main.js.

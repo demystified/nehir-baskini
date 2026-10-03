@@ -46,10 +46,16 @@ take off.
 | Pause               | P (also happens when the tab is hidden) |
 | Mute                | M                             |
 | Guided missiles     | G (the missile follows your plane sideways) |
+| Settings            | O, or click the gear on the title screen |
 
-On touch devices, semi-transparent on-screen controls appear: a pad on the left (steer, faster,
-slower) and a FIRE button on the right. Tap anywhere on the title / pause / game-over screens to
-continue.
+On touch devices, semi-transparent on-screen controls appear: a FIRE button on the left and a pad
+on the right (steer, faster, slower), the same hands as on a keyboard. Tap the screen or FIRE on
+the title / pause / game-over screens to continue.
+
+### Settings
+
+Tap the gear on the title screen (or press O) to open SETTINGS: sound on/off, guided missiles
+on/off, and which side the FIRE button is on. Choices are remembered on that device.
 
 ### Scoring
 
@@ -90,6 +96,7 @@ js/rng.js           16-bit Galois LFSR, deterministic
 js/river.js         section generator: terrain, objects, houses, water-span queries
 js/collision.js     AABB overlap and "is this box over water"
 js/scoring.js       score, extra lives, high score
+js/settings.js      saved player preferences (guided missiles, FIRE button side)
 js/sprites.js       pixel-art definitions, pre-rendered sprite canvases, 3x5 pixel font
 js/audio.js         Web Audio synthesis (no audio files)
 js/input.js         keyboard and touch input state

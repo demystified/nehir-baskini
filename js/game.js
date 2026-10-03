@@ -51,7 +51,16 @@
     PAUSED: "PAUSED",
     DYING: "DYING",
     GAMEOVER: "GAMEOVER",
+    SETTINGS: "SETTINGS",
   };
+
+  // SETTINGS screen layout (logical pixels): one row per option, tapped or chosen with keys.
+  var SETTINGS_ROW_Y = 50;
+  var SETTINGS_ROW_H = 16;
+  // The gear on the title screen, and the larger area that counts as tapping it.
+  var GEAR_X = 140;
+  var GEAR_Y = 13;
+  var GEAR_HIT = { x: 128, y: 8, w: 30, h: 26 };
 
   // Inputs that start a round from READY.
   var READY_ACTIONS = ["left", "right", "up", "down", "fire", "start"];
@@ -68,7 +77,10 @@
     this.entities = []; // enemies, depots and bridges (alive or just destroyed)
     this.explosions = [];
     this.missile = null; // at most one at a time
-    this.guided = false;
+    this.settings = opts.settings || new RR.Settings();
+    this.onSettingsChange = opts.onSettingsChange || null; // e.g. move the FIRE button
+    this.guided = this.settings.guided;
+    this.settingsRow = 0; // highlighted row on the SETTINGS screen
     this.spawnEnemies = true;
     this.time = 0;
     this.checkpoint = 0; // section index to respawn at
@@ -201,15 +213,18 @@
     this.time += dt;
     this.stateTime += dt;
     var input = this.input;
-    if (input.pressed("guided")) this.guided = !this.guided;
+    if (input.pressed("guided")) this.setGuided(!this.guided);
     if (input.pressed("mute") && this.audio) this.audio.toggleMute();
 
     switch (this.state) {
       case STATES.TITLE:
-        this.cameraY += CFG.TITLE_SCROLL * dt;
-        this.player.y = this.cameraY + CFG.PLAYER_BOTTOM_MARGIN;
-        this.ensureSections();
-        if (input.pressed("start")) this.newGame();
+        this.scrollDemo(dt);
+        if (input.pressed("settings")) this.openSettings();
+        else if (input.pressed("start")) this.newGame();
+        break;
+      case STATES.SETTINGS:
+        this.scrollDemo(dt);
+        this.updateSettings();
         break;
       case STATES.READY:
         if (!this.anyHeld(READY_ACTIONS)) this.readyArmed = true;
@@ -233,6 +248,104 @@
         break;
     }
     this.updateAudio();
+  };
+
+  // The title and settings screens share the slowly scrolling demo river.
+  Game.prototype.scrollDemo = function (dt) {
+    this.cameraY += CFG.TITLE_SCROLL * dt;
+    this.player.y = this.cameraY + CFG.PLAYER_BOTTOM_MARGIN;
+    this.ensureSections();
+  };
+
+  Game.prototype.isMenu = function () {
+    return this.state === STATES.TITLE || this.state === STATES.SETTINGS;
+  };
+
+  // ---- Settings -------------------------------------------------------------------------
+
+  Game.prototype.openSettings = function () {
+    this.settingsRow = 0;
+    this.setState(STATES.SETTINGS);
+  };
+
+  Game.prototype.closeSettings = function () {
+    this.setState(STATES.TITLE);
+  };
+
+  Game.prototype.saveSettings = function () {
+    this.settings.save();
+    if (this.onSettingsChange) this.onSettingsChange(this.settings);
+  };
+
+  Game.prototype.setGuided = function (on) {
+    this.guided = !!on;
+    this.settings.guided = this.guided;
+    this.saveSettings();
+  };
+
+  // The rows on the SETTINGS screen, in order, with their current values.
+  Game.prototype.settingsRows = function () {
+    var soundOn = !(this.audio && this.audio.isMuted());
+    return [
+      { id: "sound", label: "SOUND", value: soundOn ? "ON" : "OFF" },
+      { id: "guided", label: "GUIDED MISSILES", value: this.guided ? "ON" : "OFF" },
+      { id: "fireSide", label: "FIRE BUTTON", value: this.settings.fireSide === "right" ? "RIGHT" : "LEFT" },
+      { id: "back", label: "BACK", value: "" },
+    ];
+  };
+
+  // Change the option on row i (or leave the screen, for BACK).
+  Game.prototype.activateSetting = function (i) {
+    var id = this.settingsRows()[i].id;
+    if (id === "sound") {
+      if (this.audio) this.audio.toggleMute();
+    } else if (id === "guided") {
+      this.setGuided(!this.guided);
+    } else if (id === "fireSide") {
+      this.settings.fireSide = this.settings.fireSide === "right" ? "left" : "right";
+      this.saveSettings();
+    } else if (id === "back") {
+      this.closeSettings();
+    }
+  };
+
+  // Keys: up/down pick a row, Enter/Space/FIRE or left/right change it, Esc or O leave.
+  Game.prototype.updateSettings = function () {
+    var input = this.input;
+    var count = this.settingsRows().length;
+    if (input.pressed("back") || input.pressed("settings")) {
+      this.closeSettings();
+      return;
+    }
+    if (input.pressed("up")) this.settingsRow = (this.settingsRow + count - 1) % count;
+    if (input.pressed("down")) this.settingsRow = (this.settingsRow + 1) % count;
+    if (input.pressed("start") || input.pressed("left") || input.pressed("right")) this.activateSetting(this.settingsRow);
+  };
+
+  // A tap or click on the game screen at logical (x, y). Returns true when a menu used it,
+  // so the caller doesn't also treat it as "start".
+  Game.prototype.tapAt = function (x, y) {
+    if (this.state === STATES.TITLE) {
+      var g = GEAR_HIT;
+      if (x >= g.x && x < g.x + g.w && y >= g.y && y < g.y + g.h) {
+        this.openSettings();
+        return true;
+      }
+      return false;
+    }
+    if (this.state === STATES.SETTINGS) {
+      var rows = this.settingsRows();
+      for (var i = 0; i < rows.length; i++) {
+        var top = SETTINGS_ROW_Y + i * SETTINGS_ROW_H - 5;
+        if (x >= 8 && x < W - 8 && y >= top && y < top + SETTINGS_ROW_H) {
+          this.settingsRow = i;
+          this.activateSetting(i);
+          break;
+        }
+      }
+      return true; // taps elsewhere on this screen do nothing
+    }
+    return false;
   };
 
   // One-shot sound effects; a no-op without an audio object (headless tests).
@@ -644,7 +757,8 @@
     // A title too wide for one big line is split onto one line per word.
     var titleLines = S.textWidth(CFG.TITLE, 3) <= W - 20 ? [CFG.TITLE] : CFG.TITLE.split(" ");
     var extra = (titleLines.length - 1) * 18;
-    dimPanel(ctx, 6, 10, W - 12, 130 + extra, 0.62);
+    dimPanel(ctx, 6, 10, W - 12, 138 + extra, 0.62);
+    ctx.drawImage(S.get("gear"), GEAR_X, GEAR_Y);
     for (var t = 0; t < titleLines.length; t++) shadowText(ctx, titleLines[t], cx, 20 + t * 18, C.explosionYellow, 3);
     ctx.fillStyle = C.explosionOrange;
     ctx.fillRect(14, 42 + extra, W - 28, 1);
@@ -655,6 +769,7 @@
       ["P", "PAUSE"],
       ["M", "MUTE"],
       ["G", "GUIDED MISSILES"],
+      ["O OR GEAR", "SETTINGS"],
     ];
     var y = 50 + extra;
     for (var i = 0; i < lines.length; i++) {
@@ -662,8 +777,27 @@
       S.drawText(ctx, lines[i][1], 76, y, C.white, 1);
       y += 8;
     }
-    shadowText(ctx, "HIGH SCORE " + this.scoring.highScore, cx, 106 + extra, C.hudText, 1);
-    if (this.blink(2)) shadowText(ctx, this.input.touchUi ? "TAP TO START" : "PRESS ENTER OR SPACE", cx, 124 + extra, C.white, 1);
+    shadowText(ctx, "HIGH SCORE " + this.scoring.highScore, cx, 114 + extra, C.hudText, 1);
+    if (this.blink(2)) shadowText(ctx, this.input.touchUi ? "TAP TO START" : "PRESS ENTER OR SPACE", cx, 132 + extra, C.white, 1);
+  };
+
+  Game.prototype.renderSettings = function (ctx) {
+    var S = RR.Sprites;
+    dimPanel(ctx, 6, 10, W - 12, 150, 0.72);
+    shadowText(ctx, "SETTINGS", W / 2, 20, C.explosionYellow, 2);
+    ctx.fillStyle = C.explosionOrange;
+    ctx.fillRect(14, 36, W - 28, 1);
+    var rows = this.settingsRows();
+    for (var i = 0; i < rows.length; i++) {
+      var y = SETTINGS_ROW_Y + i * SETTINGS_ROW_H;
+      var on = i === this.settingsRow;
+      if (on) S.drawText(ctx, ">", 10, y, C.explosionYellow, 1);
+      S.drawText(ctx, rows[i].label, 16, y, on ? C.explosionYellow : C.white, 1);
+      if (rows[i].value) S.drawTextRight(ctx, rows[i].value, W - 14, y, C.hudText, 1);
+    }
+    var hint = this.input.touchUi ? ["TAP AN OPTION TO CHANGE IT", ""] : ["UP / DOWN AND ENTER", "ESC TO GO BACK"];
+    shadowText(ctx, hint[0], W / 2, 128, C.hudLight, 1);
+    if (hint[1]) shadowText(ctx, hint[1], W / 2, 138, C.hudLight, 1);
   };
 
   Game.prototype.renderReady = function (ctx) {
@@ -690,7 +824,7 @@
   Game.prototype.render = function (ctx) {
     var st = this.state;
     this.renderTerrain(ctx);
-    if (st !== STATES.TITLE) {
+    if (!this.isMenu()) {
       this.renderEntities(ctx);
       this.renderMissile(ctx);
       var showPlane = st === STATES.PLAYING || st === STATES.PAUSED || (st === STATES.READY && this.blink(8));
@@ -705,6 +839,7 @@
     }
     RR.Hud.draw(ctx, this.hudModel());
     if (st === STATES.TITLE) this.renderTitle(ctx);
+    else if (st === STATES.SETTINGS) this.renderSettings(ctx);
     else if (st === STATES.READY) this.renderReady(ctx);
     else if (st === STATES.PAUSED) this.renderPaused(ctx);
     else if (st === STATES.GAMEOVER) this.renderGameOver(ctx);
@@ -715,7 +850,7 @@
       score: this.scoring.score,
       fuel: this.fuel,
       reserves: this.scoring.reserves,
-      bridge: this.state === STATES.TITLE ? 1 : this.currentSection() + 1,
+      bridge: this.isMenu() ? 1 : this.currentSection() + 1,
       guided: this.guided,
       time: this.time,
     };

@@ -82,10 +82,21 @@
 
   RR.Main = { computeScale: computeScale, game: game };
 
-  // Tapping (or clicking) the screen starts and confirms, like Enter.
-  canvas.addEventListener("pointerdown", function () {
-    RR.Input.tap("start");
+  // Tapping (or clicking) the screen starts and confirms, like Enter, unless a menu
+  // (the title's gear, a SETTINGS row) takes the tap.
+  canvas.addEventListener("pointerdown", function (e) {
+    var r = canvas.getBoundingClientRect();
+    var x = ((e.clientX - r.left) / r.width) * CFG.VIEW_W;
+    var y = ((e.clientY - r.top) / r.height) * CFG.VIEW_H;
+    if (!game.tapAt(x, y)) RR.Input.tap("start");
   });
+
+  // Settings that change the page around the game: which side the FIRE button is on.
+  function applySettings(settings) {
+    document.documentElement.classList.toggle("fire-right", settings.fireSide === "right");
+  }
+  game.onSettingsChange = applySettings;
+  applySettings(game.settings);
 
   // Pause automatically when the tab is hidden, and don't let the clock jump when it
   // comes back.

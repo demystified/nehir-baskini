@@ -63,15 +63,17 @@ body {
   -webkit-backdrop-filter: blur(1px);
 }
 
+/* Default: FIRE on the left, steering pad on the right, like the keyboard (Space under
+   the left hand, arrows under the right). The SETTINGS screen can swap them. */
 .touch-pad {
-  left: calc(env(safe-area-inset-left, 0px) + 16px);
+  right: calc(env(safe-area-inset-right, 0px) + 16px);
   width: min(38vw, 168px);
   height: min(38vw, 168px);
   border-radius: 22%;
 }
 
 .touch-fire {
-  right: calc(env(safe-area-inset-right, 0px) + 16px);
+  left: calc(env(safe-area-inset-left, 0px) + 16px);
   width: min(30vw, 124px);
   height: min(30vw, 124px);
   border-radius: 50%;
@@ -81,6 +83,16 @@ body {
   color: rgba(255, 255, 255, 0.85);
   font: bold 15px/1 monospace;
   letter-spacing: 2px;
+}
+
+.fire-right .touch-pad {
+  left: calc(env(safe-area-inset-left, 0px) + 16px);
+  right: auto;
+}
+
+.fire-right .touch-fire {
+  right: calc(env(safe-area-inset-right, 0px) + 16px);
+  left: auto;
 }
 
 .touch-fire.on,

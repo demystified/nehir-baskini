@@ -41,7 +41,7 @@ test("the player sprite is symmetric when level, and not when banking", () => {
 });
 
 test("font: 5 rows per glyph, consistent width, covers 0-9 A-Z and the half sign", () => {
-  const need = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ ½-.:!?/'+()=,";
+  const need = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ ½-.:!?/'+()=,<>";
   for (const ch of need) {
     const g = Sprites.GLYPH_ROWS[ch];
     assert.ok(g, `missing glyph '${ch}'`);

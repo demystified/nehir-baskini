@@ -170,7 +170,7 @@ test("random button mashing in every state for 40,000 steps: nothing throws, inv
   const { game, input } = makeGame({ title: true });
   const rng = new RR.Rng(0xbeef);
   const ctx = stubContext();
-  const actions = ["left", "right", "up", "down", "fire", "start", "pause", "mute", "guided"];
+  const actions = RR.Input.ACTIONS;
   const seen = new Set();
   for (let n = 0; n < 40000; n++) {
     // flip a random button now and then
@@ -180,6 +180,7 @@ test("random button mashing in every state for 40,000 steps: nothing throws, inv
       else input.down(a, "fuzz");
     }
     if (rng.chance(0.02)) input.tap(rng.pick(actions));
+    if (rng.chance(0.01)) game.tapAt(rng.int(0, RR.CONFIG.VIEW_W), rng.int(0, RR.CONFIG.VIEW_H));
     if (rng.chance(0.002)) game.autoPause();
     if (rng.chance(0.0005)) {
       // sometimes cheat so the late-game states are exercised too
