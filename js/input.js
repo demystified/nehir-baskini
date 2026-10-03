@@ -141,6 +141,7 @@
       if (self.touchUi) return;
       self.touchUi = true;
       doc.documentElement.classList.add("touch-ui");
+      if (self.onTouchUi) self.onTouchUi();
     }
 
     // pointerId -> directions that finger currently holds on the pad

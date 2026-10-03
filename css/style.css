@@ -10,6 +10,8 @@ html, body {
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
+  /* iOS Safari ignores user-scalable=no: this is what stops double-tap and pinch zoom. */
+  touch-action: none;
 }
 
 body {
@@ -18,6 +20,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* With touch controls, pin the game to the top and leave the bottom for the pad. */
+.touch-ui body {
+  align-items: flex-start;
+  padding-top: env(safe-area-inset-top, 0px);
+  box-sizing: border-box;
 }
 
 #screen {

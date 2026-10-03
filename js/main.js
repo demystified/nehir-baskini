@@ -39,10 +39,20 @@
     ctx.drawImage(buffer, 0, 0, canvas.width, canvas.height);
   }
 
+  // Height kept free below the game for the on-screen pad and FIRE button.
+  function touchReserve() {
+    if (!RR.Input.touchUi) return 0;
+    var pad = document.querySelector(".touch-pad");
+    if (!pad) return 0;
+    var r = pad.getBoundingClientRect();
+    return window.innerHeight - r.top + 8;
+  }
+
   function resize() {
     var dpr = window.devicePixelRatio || 1;
+    var availH = Math.max(1, window.innerHeight - touchReserve());
     // Work in device pixels so the integer scale is crisp on HiDPI screens too.
-    var scale = computeScale(window.innerWidth * dpr, window.innerHeight * dpr);
+    var scale = computeScale(window.innerWidth * dpr, availH * dpr);
     var w = Math.max(1, Math.floor(CFG.VIEW_W * scale));
     var h = Math.max(1, Math.floor(CFG.VIEW_H * scale));
     canvas.width = w;
@@ -84,7 +94,25 @@
     last = null;
   });
 
+  // iOS Safari ignores the viewport's user-scalable=no, so block its zoom gestures here:
+  // pinch (Safari's gesture events), double-tap, and a quick second tap anywhere.
+  ["gesturestart", "gesturechange", "gestureend"].forEach(function (type) {
+    document.addEventListener(type, function (e) {
+      e.preventDefault();
+    }, { passive: false });
+  });
+  document.addEventListener("dblclick", function (e) {
+    e.preventDefault();
+  }, { passive: false });
+  var lastTouchEnd = 0;
+  document.addEventListener("touchend", function (e) {
+    var now = Date.now();
+    if (now - lastTouchEnd < 350) e.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+
   window.addEventListener("resize", resize);
+  RR.Input.onTouchUi = resize; // the pad appearing changes the room left for the game
   window.addEventListener("orientationchange", resize);
   resize();
   requestAnimationFrame(frame);
