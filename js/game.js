@@ -641,10 +641,13 @@
   Game.prototype.renderTitle = function (ctx) {
     var S = RR.Sprites;
     var cx = W / 2;
-    dimPanel(ctx, 6, 10, W - 12, 130, 0.62);
-    shadowText(ctx, CFG.TITLE, cx, 20, C.explosionYellow, 3);
+    // A title too wide for one big line is split onto one line per word.
+    var titleLines = S.textWidth(CFG.TITLE, 3) <= W - 20 ? [CFG.TITLE] : CFG.TITLE.split(" ");
+    var extra = (titleLines.length - 1) * 18;
+    dimPanel(ctx, 6, 10, W - 12, 130 + extra, 0.62);
+    for (var t = 0; t < titleLines.length; t++) shadowText(ctx, titleLines[t], cx, 20 + t * 18, C.explosionYellow, 3);
     ctx.fillStyle = C.explosionOrange;
-    ctx.fillRect(14, 42, W - 28, 1);
+    ctx.fillRect(14, 42 + extra, W - 28, 1);
     var lines = [
       ["ARROWS OR WASD", "STEER"],
       ["UP / DOWN", "FASTER / SLOWER"],
@@ -653,14 +656,14 @@
       ["M", "MUTE"],
       ["G", "GUIDED MISSILES"],
     ];
-    var y = 50;
+    var y = 50 + extra;
     for (var i = 0; i < lines.length; i++) {
       S.drawText(ctx, lines[i][0], 14, y, C.hudLight, 1);
       S.drawText(ctx, lines[i][1], 76, y, C.white, 1);
       y += 8;
     }
-    shadowText(ctx, "HIGH SCORE " + this.scoring.highScore, cx, 106, C.hudText, 1);
-    if (this.blink(2)) shadowText(ctx, this.input.touchUi ? "TAP TO START" : "PRESS ENTER OR SPACE", cx, 124, C.white, 1);
+    shadowText(ctx, "HIGH SCORE " + this.scoring.highScore, cx, 106 + extra, C.hudText, 1);
+    if (this.blink(2)) shadowText(ctx, this.input.touchUi ? "TAP TO START" : "PRESS ENTER OR SPACE", cx, 124 + extra, C.white, 1);
   };
 
   Game.prototype.renderReady = function (ctx) {

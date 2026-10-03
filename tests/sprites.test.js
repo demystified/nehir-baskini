@@ -59,3 +59,15 @@ test("text width accounts for spacing and scale", () => {
   assert.equal(Sprites.textWidth("AB", 1), 7);
   assert.equal(Sprites.textWidth("AB", 2), 14);
 });
+
+test("font: Turkish letters are their base letter plus one mark row above or below", () => {
+  const cases = { "\u0130": "I", "\u00d6": "O", "\u00dc": "U", "\u011e": "G", "\u015e": "S", "\u00c7": "C" };
+  for (const [ch, base] of Object.entries(cases)) {
+    const g = Sprites.GLYPH_ROWS[ch];
+    assert.ok(g, `missing glyph '${ch}'`);
+    assert.equal(g.length, Sprites.GLYPH_H + 2);
+    assert.deepEqual(g.slice(1, 1 + Sprites.GLYPH_H), Sprites.GLYPH_ROWS[base]);
+    assert.ok(g[0].includes("#") || g[g.length - 1].includes("#"), `'${ch}' has no mark`);
+  }
+  assert.equal(Sprites.textWidth(CONFIG.TITLE, 1), CONFIG.TITLE.length * 4 - 1);
+});

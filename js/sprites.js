@@ -264,6 +264,23 @@
     GLYPH_ROWS["\u00bd"] = rows;
   })();
 
+  // Turkish letters: a base letter plus a mark row above or below, making a 7-row glyph
+  // that drawText lifts by one row so the base letter stays on the line.
+  (function () {
+    var MARKS = {
+      "\u0130": { base: "I", above: ".#." }, // \u0130
+      "\u00d6": { base: "O", above: "#.#" }, // \u00d6
+      "\u00dc": { base: "U", above: "#.#" }, // \u00dc
+      "\u011e": { base: "G", above: "###" }, // \u011e
+      "\u015e": { base: "S", below: ".#." }, // \u015e
+      "\u00c7": { base: "C", below: ".#." }, // \u00c7
+    };
+    for (var ch in MARKS) {
+      var m = MARKS[ch];
+      GLYPH_ROWS[ch] = [m.above || "..."].concat(GLYPH_ROWS[m.base], [m.below || "..."]);
+    }
+  })();
+
   var GLYPH_H = 5;
   var GLYPH_SPACING = 1;
 
@@ -328,7 +345,7 @@
     return byColor[ch];
   }
 
-  // Draw text (A-Z, 0-9 and a few symbols; lower case is upper-cased) at integer scale.
+  // Draw text (A-Z, 0-9, İ Ö Ü Ğ Ş Ç and a few symbols; lower case is upper-cased) at integer scale.
   function drawText(ctx, text, x, y, color, scale) {
     scale = scale || 1;
     text = String(text).toUpperCase();
@@ -336,7 +353,8 @@
     for (var i = 0; i < text.length; i++) {
       var ch = text.charAt(i);
       var cv = glyphCanvas(ch, color);
-      ctx.drawImage(cv, cx, y, cv.width * scale, cv.height * scale);
+      var lift = cv.height > GLYPH_H ? scale : 0; // 7-row Turkish glyphs start one row higher
+      ctx.drawImage(cv, cx, y - lift, cv.width * scale, cv.height * scale);
       cx += (glyphWidth(ch) + GLYPH_SPACING) * scale;
     }
     return cx - x;

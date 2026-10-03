@@ -120,6 +120,6 @@ test("consecutive floats are not trivially correlated", () => {
 
 test("config sanity", () => {
   assert.equal(CONFIG.SECTION_H, 528);
-  assert.equal(CONFIG.TITLE, "RIVER RAID");
+  assert.equal(CONFIG.TITLE, "NEHİR BASKINI");
   assert.equal(CONFIG.MASTER_SEED, 0xa5c3);
 });

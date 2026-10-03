@@ -5,7 +5,7 @@
   // Every tunable number in the game lives here. Units: pixels at the logical
   // resolution (160 x 232), seconds, and pixels/second unless noted otherwise.
   var CONFIG = {
-    TITLE: "RIVER RAID",
+    TITLE: "NEHİR BASKINI",
     MASTER_SEED: 0xa5c3,
     SECTION_SEED_SALT: 21, // mixed into every section seed (picked so the depot trend is representative)
 
